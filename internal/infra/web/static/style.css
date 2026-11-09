@@ -103,6 +103,18 @@ footer span { font-family: var(--mono); color: var(--muted); }
 .bar { height: 8px; border-radius: 99px; background: var(--raised); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), var(--aqua)); transition: width .4s; }
 
+/* joystick */
+.joy { display: flex; gap: 1.2rem; align-items: flex-start; flex-wrap: wrap; }
+.pad { display: grid; grid-template-columns: repeat(3, 3.2rem); grid-template-rows: repeat(3, 3.2rem); gap: .35rem; flex: none; }
+.key { display: grid; place-items: center; align-content: center; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); color: var(--muted); font-size: 1rem; line-height: 1; transition: background .1s, color .1s; }
+.key b { font: 500 .68rem var(--mono); color: var(--faint); margin-top: .2rem; }
+.key.up { grid-area: 1 / 2; } .key.left { grid-area: 2 / 1; } .key.center { grid-area: 2 / 2; border-radius: 50%; }
+.key.right { grid-area: 2 / 3; } .key.down { grid-area: 3 / 2; }
+.key.held { background: var(--pink); border-color: var(--pink); color: var(--surface); }
+.key.held b { color: var(--surface); }
+.key.flash { border-color: var(--pink); color: var(--pink); }
+#joy-recent li { font: .85rem var(--mono); padding: .3rem 0; }
+
 /* charts */
 .chart { margin: 0; position: relative; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }

@@ -9,7 +9,9 @@ const HARDWARE = [
   ["bmp180", "BMP180", "0x77", "temperature and pressure"],
   ["ds3231", "DS3231", "0x68", "real-time clock"],
   ["pcf8591", "PCF8591", "0x48", "4-channel ADC"],
-  ["buzzer", "PCF8574", "0x20", "buzzer, active-low"],
+  ["buzzer", "PCF8574", "0x20", "buzzer (bit 7, active-low)"],
+  ["joystick", "Joystick", "0x20 + GPIO 20", "5-way switch: directions on PCF8574 bits 0–3, centre on BCM 20"],
+  ["ds18b20", "DS18B20", "1-Wire", "temperature probe (optional)"],
   ["lcd", "LCD", "", "character display (optional)"],
 ];
 
@@ -83,14 +85,21 @@ function renderStatus(s) {
 
   const r = s.reading || {};
 
-  if (r.temperature_c != null) {
-    setValue("temp", r.temperature_c.toFixed(1), "°C");
+  // A DS18B20 probe is the room; the BMP180 sits over the Pi's CPU and reads
+  // the board's heat, so it is the fallback.
+  const probe = (r.probes || [])[0];
+  if (probe) {
+    setValue("temp", probe.celsius.toFixed(1), "°C");
+    $("temp-sub").textContent = `DS18B20 probe${r.temperature_c != null ? ` · board ${r.temperature_c.toFixed(1)} °C (BMP180)` : ""}`;
   } else {
-    setValue("temp", "–");
+    setValue("temp", r.temperature_c != null ? r.temperature_c.toFixed(1) : "–", r.temperature_c != null ? "°C" : "");
+    $("temp-sub").textContent = r.rtc_temperature_c != null
+      ? `BMP180, board heat · RTC die ${r.rtc_temperature_c.toFixed(2)} °C`
+      : "BMP180, board heat";
   }
-  $("temp-sub").textContent = r.rtc_temperature_c != null
-    ? `BMP180 · RTC die ${r.rtc_temperature_c.toFixed(2)} °C`
-    : "BMP180";
+  renderProbes(r.probes || []);
+  if (s.joystick) renderJoystick(s.joystick);
+  $("joystick-panel").hidden = !(s.sensors || {}).joystick;
 
   if (r.pressure_pa != null) setValue("pressure", (r.pressure_pa / 100).toFixed(1), "hPa");
   else setValue("pressure", "–");
@@ -142,12 +151,59 @@ function renderADC(channels) {
   }));
 }
 
+function renderProbes(probes) {
+  const ul = $("probes");
+  if (!probes.length) {
+    ul.replaceChildren(el("li", { class: "empty" }, "No DS18B20 on the 1-Wire bus."));
+    return;
+  }
+  ul.replaceChildren(...probes.map((p) => el("li", {},
+    el("span", { class: "grow" }, el("span", { class: "name" }, `${p.celsius.toFixed(2)} °C`), el("br"), el("code", {}, p.id)))));
+}
+
+let lastPress = null;
+
+function renderJoystick(js) {
+  const held = new Set(js.pressed || []);
+  const newest = (js.recent || [])[0];
+  const fresh = newest && newest.at !== lastPress;
+  document.querySelectorAll(".key").forEach((k) => {
+    const key = k.dataset.key;
+    k.classList.toggle("held", held.has(key));
+    k.querySelector("b").textContent = String((js.counts || {})[key] || 0);
+    if (fresh && newest.key === key && !held.has(key)) {
+      k.classList.add("flash");
+      setTimeout(() => k.classList.remove("flash"), 600);
+    }
+  });
+  if (newest) lastPress = newest.at;
+  const recent = js.recent || [];
+  $("joy-recent").replaceChildren(...recent.slice(0, 6).map((p) =>
+    el("li", {}, el("span", { class: "grow" }, p.key), el("span", { class: "muted" }, `${fmtDate(new Date(p.at))} ${fmtTime(new Date(p.at), true)}`))));
+  $("joy-note").textContent = recent.length
+    ? "Lit while held; numbers are presses since the daemon started."
+    : "Press the joystick on the board: the key lights here and the press is counted.";
+}
+
+// The joystick is polled fast, but only while the page is visible.
+async function refreshJoystick() {
+  if (!document.hidden && last && (last.sensors || {}).joystick) {
+    try {
+      renderJoystick(await getJSON("api/joystick"));
+    } catch {
+      // the status banner reports an unreachable daemon.
+    }
+  }
+  setTimeout(refreshJoystick, 400);
+}
+
 function renderHardware(found) {
   $("hardware").replaceChildren(...HARDWARE.map(([key, chip, addr, what]) => {
     const ok = !!found[key];
+    const optional = { lcd: "off", ds18b20: "not attached" };
     const state = ok
       ? el("span", { class: "chip ok" }, "found")
-      : el("span", { class: key === "lcd" ? "chip" : "chip bad" }, key === "lcd" ? "off" : "missing");
+      : el("span", { class: key in optional ? "chip" : "chip bad" }, optional[key] || "missing");
     return el("li", {},
       el("span", { class: "grow" }, el("span", { class: "name" }, chip), " ", addr ? el("code", {}, addr) : "", el("br"), el("span", { class: "muted small" }, what)),
       state);
@@ -311,5 +367,6 @@ document.addEventListener("DOMContentLoaded", () => {
   buttons.forEach((b) => b.addEventListener("click", () => beep(Number(b.dataset.beep), buttons)));
   refreshStatus();
   refreshHistory();
+  refreshJoystick();
   setInterval(renderLive, 1000);
 });

@@ -21,6 +21,8 @@ type Collector struct {
 	rtcTemp     prometheus.Gauge
 	adcRaw      *prometheus.GaugeVec
 	adcVolts    *prometheus.GaugeVec
+	probes      *prometheus.GaugeVec
+	presses     *prometheus.CounterVec
 }
 
 // New builds the collector. Metric names are prefixed didban_.
@@ -50,12 +52,30 @@ func New() *Collector {
 			Name: "didban_adc_volts",
 			Help: "PCF8591 ADC reading scaled to volts, per channel.",
 		}, []string{"channel", "label"}),
+		probes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "didban_ds18b20_temperature_celsius",
+			Help: "Temperature in °C of each DS18B20 probe on the 1-Wire bus.",
+		}, []string{"id"}),
+		presses: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "didban_joystick_presses_total",
+			Help: "Joystick presses since the daemon started, per key.",
+		}, []string{"key"}),
 	}
+}
+
+// Press counts one joystick press.
+func (c *Collector) Press(k sensor.Key) {
+	c.presses.WithLabelValues(string(k)).Inc()
 }
 
 // MustRegister registers every gauge on r.
 func (c *Collector) MustRegister(r prometheus.Registerer) {
-	r.MustRegister(c.up, c.temperature, c.pressure, c.rtcTemp, c.adcRaw, c.adcVolts)
+	r.MustRegister(c.up, c.temperature, c.pressure, c.rtcTemp, c.adcRaw, c.adcVolts, c.probes, c.presses)
+
+	// Every key starts at 0, so rate() and increase() work from the first press.
+	for _, k := range sensor.AllKeys {
+		c.presses.WithLabelValues(string(k))
+	}
 }
 
 // Observe writes a reading into the gauges.
@@ -82,6 +102,13 @@ func (c *Collector) Observe(r sensor.Reading) {
 		idx := strconv.Itoa(ch.Index)
 		c.adcRaw.WithLabelValues(idx, ch.Label).Set(float64(ch.Raw))
 		c.adcVolts.WithLabelValues(idx, ch.Label).Set(ch.Volts)
+		seen = true
+	}
+
+	c.probes.Reset() // a probe that was unplugged must not keep its last value.
+
+	for _, p := range r.Probes {
+		c.probes.WithLabelValues(p.ID).Set(p.Celsius)
 		seen = true
 	}
 

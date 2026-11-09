@@ -28,10 +28,26 @@ vref = 3.3
 labels = ["potentiometer", "photoresistor", "ain2", "ain3"]
 
 [buzzer]
-# active-low buzzer on the PCF8574 I/O expander
+# active-low buzzer on the PCF8574 I/O expander: bit 7 on the Pioneer600
+# (bits 0-3 are the joystick, bit 4 is LED2)
 enabled = true
 address = 0x20
-bit = 0
+bit = 7
+
+[joystick]
+# five-way switch: directions on the PCF8574 (bits 0-3, active-low), the
+# centre on a GPIO with a pull-up (periph's name). beep chirps on each press.
+enabled = true
+address = 0x20
+center = "GPIO20"
+poll = "50ms"
+beep = true
+
+[ds18b20]
+# DS18B20 probes through the kernel 1-Wire driver; needs
+# dtoverlay=w1-gpio-pullup in config.txt
+enabled = true
+dir = "/sys/bus/w1/devices"
 
 [lcd]
 # HD44780 behind a PCF8574 backpack. Off by default: on the Pioneer600,

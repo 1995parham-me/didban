@@ -57,7 +57,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	coll.MustRegister(reg)
 
 	msg := &message{}
-	web := newServer(cfg, reg, st, msg)
+	web := newServer(cfg, reg, coll, st, msg)
 
 	srv := &http.Server{
 		Addr:              cfg.Server.Address,
@@ -71,6 +71,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			slog.Error("http server stopped", "err", sErr)
 		}
 	}()
+
+	go web.watchJoystick(ctx)
 
 	poll(ctx, cfg, st, coll, msg, web)
 

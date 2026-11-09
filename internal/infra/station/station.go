@@ -18,8 +18,10 @@ import (
 	"github.com/1995parham-me/didban/internal/config"
 	"github.com/1995parham-me/didban/internal/infra/bmp180"
 	"github.com/1995parham-me/didban/internal/infra/buzzer"
+	"github.com/1995parham-me/didban/internal/infra/ds18b20"
 	"github.com/1995parham-me/didban/internal/infra/ds3231"
 	"github.com/1995parham-me/didban/internal/infra/i2cbus"
+	"github.com/1995parham-me/didban/internal/infra/joystick"
 	"github.com/1995parham-me/didban/internal/infra/lcd"
 	"github.com/1995parham-me/didban/internal/infra/pcf8591"
 	"github.com/1995parham-me/didban/internal/sensor"
@@ -37,7 +39,11 @@ type Station struct {
 	adc  *pcf8591.ADC
 	lcd  *lcd.Display
 	buzz *buzzer.Buzzer
+	joy  *joystick.Joystick
 	loc  *time.Location
+
+	// probes is how many DS18B20s the last read found (under mu).
+	probes int
 }
 
 // New opens the bus and constructs every enabled component. A sensor that
@@ -77,6 +83,16 @@ func New(cfg config.Config) (*Station, error) {
 		}
 	}
 
+	if cfg.Joystick.Enabled {
+		// A missing centre key leaves the four directions working.
+		j, err := joystick.New(i2cbus.Dev(bus, cfg.Joystick.Address), cfg.Joystick.Center)
+		if err != nil {
+			slog.Warn("joystick centre key unavailable", "err", err)
+		}
+
+		s.joy = j
+	}
+
 	if cfg.LCD.Enabled {
 		d := lcd.New(i2cbus.Dev(bus, cfg.LCD.Address), cfg.LCD.Cols, cfg.LCD.Rows)
 		d.Backlight(cfg.LCD.Backlight)
@@ -92,6 +108,28 @@ func New(cfg config.Config) (*Station, error) {
 
 // Read polls every available sensor once.
 func (s *Station) Read(ctx context.Context) sensor.Reading {
+	r := s.readBus(ctx)
+
+	// The probes are on the kernel's 1-Wire bus, not I²C, and take up to
+	// ~750 ms each, so they are read without holding the bus lock.
+	if s.cfg.DS18B20.Enabled {
+		probes, err := ds18b20.Read(s.cfg.DS18B20.Dir)
+		if err != nil {
+			slog.WarnContext(ctx, "ds18b20 read failed", "err", err)
+		}
+
+		r.Probes = probes
+
+		s.mu.Lock()
+		s.probes = len(probes)
+		s.mu.Unlock()
+	}
+
+	return r
+}
+
+// readBus polls the I²C sensors under the bus lock.
+func (s *Station) readBus(ctx context.Context) sensor.Reading {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -137,15 +175,42 @@ func (s *Station) Read(ctx context.Context) sensor.Reading {
 	return r
 }
 
-// Sensors reports which components were found and are in use, by name.
+// Sensors reports which components were found and are in use, by name. The
+// DS18B20 counts as found when the last read saw at least one probe.
 func (s *Station) Sensors() map[string]bool {
+	s.mu.Lock()
+	probes := s.probes
+	s.mu.Unlock()
+
 	return map[string]bool{
-		"bmp180":  s.bmp != nil,
-		"ds3231":  s.rtc != nil,
-		"pcf8591": s.adc != nil,
-		"buzzer":  s.buzz != nil,
-		"lcd":     s.lcd != nil,
+		"bmp180":   s.bmp != nil,
+		"ds3231":   s.rtc != nil,
+		"pcf8591":  s.adc != nil,
+		"buzzer":   s.buzz != nil,
+		"joystick": s.joy != nil,
+		"ds18b20":  probes > 0,
+		"lcd":      s.lcd != nil,
 	}
+}
+
+// HasJoystick reports whether the joystick is enabled.
+func (s *Station) HasJoystick() bool { return s.joy != nil }
+
+// Held returns the joystick keys pressed now.
+func (s *Station) Held() ([]sensor.Key, error) {
+	if s.joy == nil {
+		return nil, nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	held, err := s.joy.Held()
+	if err != nil {
+		return nil, fmt.Errorf("station: joystick: %w", err)
+	}
+
+	return held, nil
 }
 
 // HasBuzzer reports whether a usable buzzer was found.

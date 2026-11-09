@@ -60,6 +60,29 @@
   </section>
 
   <section class="grid2">
+    <div class="panel" id="joystick-panel">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5l2.5 3h-5zM12 21.5l2.5-3h-5zM2.5 12l3-2.5v5zM21.5 12l-3-2.5v5z"/></svg>Joystick</h2>
+      <div class="joy">
+        <div class="pad" role="group" aria-label="Joystick keys, lit while held">
+          <span class="key up" data-key="up">▲<b>0</b></span>
+          <span class="key left" data-key="left">◀<b>0</b></span>
+          <span class="key center" data-key="center">●<b>0</b></span>
+          <span class="key right" data-key="right">▶<b>0</b></span>
+          <span class="key down" data-key="down">▼<b>0</b></span>
+        </div>
+        <div class="grow">
+          <p class="muted small" id="joy-note">Press the joystick on the board: the key lights here and the press is counted.</p>
+          <ul class="list" id="joy-recent"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M17 6h3M17 10h3"/></svg>Temperature probes (DS18B20)</h2>
+      <ul class="list" id="probes"><li class="empty">No DS18B20 on the 1-Wire bus.</li></ul>
+    </div>
+  </section>
+
+  <section class="grid2">
     <div class="panel">
       <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Analog inputs (PCF8591)</h2>
       <ul class="bars" id="adc"><li class="empty">No ADC reading.</li></ul>

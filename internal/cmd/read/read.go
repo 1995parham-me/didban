@@ -73,5 +73,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		fmt.Fprintf(out, "adc[%d] %-6s: raw=%3d  %.3f V\n", ch.Index, ch.Label, ch.Raw, ch.Volts)
 	}
 
+	for _, p := range r.Probes {
+		fmt.Fprintf(out, "probe       : %.3f °C (ds18b20 %s)\n", p.Celsius, p.ID)
+	}
+
 	return nil
 }

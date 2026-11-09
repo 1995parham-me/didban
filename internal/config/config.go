@@ -26,6 +26,26 @@ type Config struct {
 	BMP180 Device `json:"bmp180" koanf:"bmp180"`
 	DS3231 RTC    `json:"ds3231" koanf:"ds3231"`
 	ADC    ADC    `json:"adc"    koanf:"adc"`
+
+	Joystick Joystick `json:"joystick" koanf:"joystick"`
+	DS18B20  OneWire  `json:"ds18b20"  koanf:"ds18b20"`
+}
+
+// Joystick is the five-way switch: four directions on the PCF8574 at Address
+// (bits 0–3), the centre on the GPIO named Center. Beep chirps the buzzer on
+// every press.
+type Joystick struct {
+	Enabled bool          `json:"enabled" koanf:"enabled"`
+	Address uint16        `json:"address" koanf:"address"`
+	Center  string        `json:"center"  koanf:"center"`
+	Poll    time.Duration `json:"poll"    koanf:"poll"`
+	Beep    bool          `json:"beep"    koanf:"beep"`
+}
+
+// OneWire is where the kernel lists DS18B20 probes.
+type OneWire struct {
+	Enabled bool   `json:"enabled" koanf:"enabled"`
+	Dir     string `json:"dir"     koanf:"dir"`
 }
 
 // Buzzer describes the active-low buzzer on a PCF8574 I/O expander: the
@@ -90,14 +110,18 @@ func Default() Config {
 		// The LCD is off by default: on the reference HAT 0x20 is the buzzer,
 		// not an LCD. Enable it only once a real display is located, at its own
 		// address.
-		LCD:    LCD{Enabled: false, Address: 0x27, Cols: 16, Rows: 2, Backlight: true},
-		Buzzer: Buzzer{Enabled: true, Address: 0x20, Bit: 0},
+		LCD: LCD{Enabled: false, Address: 0x27, Cols: 16, Rows: 2, Backlight: true},
+		// The buzzer is PCF8574 bit 7 (Waveshare's beep_on clears 0x80);
+		// bits 0–3 are the joystick and bit 4 is LED2.
+		Buzzer: Buzzer{Enabled: true, Address: 0x20, Bit: 7},
 		BMP180: Device{Enabled: true, Address: 0x77},
 		DS3231: RTC{Enabled: true, Address: 0x68, Timezone: "Asia/Tehran"},
 		ADC: ADC{
 			Enabled: true, Address: 0x48, VRef: 3.3,
 			Labels: []string{"ain0", "ain1", "ain2", "ain3"},
 		},
+		Joystick: Joystick{Enabled: true, Address: 0x20, Center: "GPIO20", Poll: 50 * time.Millisecond, Beep: true},
+		DS18B20:  OneWire{Enabled: true, Dir: "/sys/bus/w1/devices"},
 	}
 }
 
