@@ -13,9 +13,9 @@
 
 ---
 
-didban reads the sensors on a [Waveshare Pioneer600](https://www.waveshare.com/wiki/Pioneer600) HAT over I²C and exposes them as Prometheus metrics: room temperature, air pressure, the real-time clock, and four analog inputs. It can also sound the HAT's buzzer, and drive an HD44780 character LCD when one is connected.
+didban reads the sensors on a [Waveshare Pioneer600](https://www.waveshare.com/wiki/Pioneer600) HAT over I²C and shows them on a small status page and as Prometheus metrics: room temperature, air pressure, the real-time clock, and four analog inputs. It can also sound the HAT's buzzer, keep the RTC set, and drive an HD44780 character LCD when one is connected.
 
-It is one static binary with no CGO, so a `GOARCH=arm64` build copies straight onto the Pi. A dead or missing chip is logged and skipped; the other sensors keep reporting.
+It is one static binary with no CGO and no external assets, so a `GOARCH=arm64` build copies straight onto the Pi. A dead or missing chip is logged and skipped; the other sensors keep reporting.
 
 ## Hardware
 
@@ -53,11 +53,31 @@ adc[0] ain0  : raw=212  2.744 V
 
 $ didban read --json          # the same reading as JSON
 $ didban beep --count 3        # three short beeps
-$ didban serve                 # poll every 15 s, serve /metrics on :9465
+$ didban serve                 # poll every 15 s; status page, API and /metrics on :9465
+$ didban rtc                   # the RTC's time next to the system clock
+$ sudo didban rtc sync         # set the RTC from the system clock (only when NTP has set it)
 $ didban lcd -s 120 dinner is ready   # show a message on the LCD for 2 min (needs an LCD; see below)
 ```
 
 `didban lcd` talks to the running daemon: `serve` accepts `POST /lcd` with a JSON body `{"text": "...", "seconds": 60}` (or `"lines": [...]`, one per row), so any other service can put a message on the display. Between messages the LCD shows the latest reading.
+
+## Status page
+
+`serve` answers on `/` with a status page in the [Naz](https://github.com/1995parham/naz.vim) palette. It shows the current readings, the pressure trend over three hours, the RTC's drift from the system clock, 24-hour temperature and pressure charts, the ADC channels, which chips were found, and buttons that sound the buzzer. The page is embedded in the binary and loads nothing from the internet. It refreshes itself at the poll interval.
+
+The charts are kept in memory, one point a minute, and start empty after a restart. Prometheus keeps the long history.
+
+The page reads a small JSON API, which other tools can use too:
+
+| Route | |
+| --- | --- |
+| `GET /api/status` | host, version, uptime, the chips found, the latest reading, and `rtc_drift_seconds` |
+| `GET /api/history` | the last 24 h, one sample a minute: temperature, pressure, RTC temperature |
+| `POST /api/beep` | `{"count": 1}` (1–5) sounds the buzzer. It needs `Content-Type: application/json`, so a page on another site cannot trigger it, and answers 409 while a beep is still sounding |
+| `POST /lcd` | a message for the LCD (see above) |
+| `GET /metrics` | Prometheus |
+
+didban has no login. Keep the port inside the house, or put a reverse proxy with an allow-list in front of it.
 
 ## Metrics
 
@@ -118,7 +138,7 @@ just lint    # golangci-lint (default: all)
 just build-pi
 ```
 
-The layout follows `cmd/` + `internal/{cmd,infra,sensor}`: one package per chip under `internal/infra`, `internal/infra/station` composes them, and `internal/sensor` holds the plain reading types. The BMP180 compensation is tested against the worked example in the datasheet.
+The layout follows `cmd/` + `internal/{cmd,infra,sensor}`: one package per chip under `internal/infra`, `internal/infra/station` composes them, `internal/infra/web` embeds the status page, and `internal/sensor` holds the plain reading types and the chart history. The BMP180 compensation is tested against the worked example in the datasheet, and the DS3231 register encoding by a round trip.
 
 ## License
 
