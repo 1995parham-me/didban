@@ -57,6 +57,8 @@ spi = "/dev/spidev0.0"
 dc = "GPIO16"
 reset = "GPIO19"
 contrast = 127
+# turn the image by 180 degrees
+rotate = false
 
 [led]
 # LED1 shows the tunnel: steady = up, flicker = data moving, slow blink =

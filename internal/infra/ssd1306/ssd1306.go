@@ -23,8 +23,8 @@ const (
 	Height = 64
 )
 
-// initSequence sets up a 128×64 panel with the internal charge pump,
-// horizontal addressing and column/row remap (the image right side up).
+// initSequence sets up a 128×64 panel with the internal charge pump and
+// horizontal addressing, upright on the Pioneer600 (Rotate turns it over).
 var initSequence = []byte{
 	0xAE,       // display off
 	0xD5, 0x80, // clock divide
@@ -33,8 +33,8 @@ var initSequence = []byte{
 	0x40,       // start line 0
 	0x8D, 0x14, // charge pump on
 	0x20, 0x00, // horizontal addressing
-	0xA1,       // segment remap
-	0xC8,       // COM scan from the bottom
+	0xA0,       // columns left to right
+	0xC0,       // rows top to bottom
 	0xDA, 0x12, // COM pins
 	0x81, 0xCF, // contrast
 	0xD9, 0xF1, // pre-charge
@@ -139,6 +139,15 @@ func (d *Display) Show(img image.Image) error {
 	}
 
 	return nil
+}
+
+// Rotate turns the image by 180°, for a panel mounted the other way up.
+func (d *Display) Rotate(on bool) error {
+	if on {
+		return d.command(0xA1, 0xC8)
+	}
+
+	return d.command(0xA0, 0xC0)
 }
 
 // Contrast sets the brightness, 0–255.

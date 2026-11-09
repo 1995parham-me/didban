@@ -35,13 +35,14 @@ type Config struct {
 }
 
 // OLED is the 128×64 SSD1306 on SPI: the port and the data/command and reset
-// GPIOs (periph names). Contrast is 0–255.
+// GPIOs (periph names). Contrast is 0–255; Rotate turns the image by 180°.
 type OLED struct {
 	Enabled  bool   `json:"enabled"  koanf:"enabled"`
 	SPI      string `json:"spi"      koanf:"spi"`
 	DC       string `json:"dc"       koanf:"dc"`
 	Reset    string `json:"reset"    koanf:"reset"`
 	Contrast uint8  `json:"contrast" koanf:"contrast"`
+	Rotate   bool   `json:"rotate"   koanf:"rotate"`
 }
 
 // LED is a light on a GPIO that shows the tunnel's state.

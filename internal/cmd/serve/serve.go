@@ -145,6 +145,10 @@ func startOutputs(ctx context.Context, cfg config.Config, web *server) func() {
 				slog.Warn("oled contrast", "err", err)
 			}
 
+			if err := d.Rotate(cfg.OLED.Rotate); err != nil {
+				slog.Warn("oled rotate", "err", err)
+			}
+
 			web.oled = true
 
 			wg.Go(func() { web.drawOLED(ctx, d) })
