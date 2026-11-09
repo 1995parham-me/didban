@@ -24,12 +24,18 @@ It is one static binary with no CGO and no external assets, so a `GOARCH=arm64` 
 | `0x77` | BMP180 | temperature (°C) and barometric pressure (Pa), with the datasheet's fixed-point compensation |
 | `0x68` | DS3231 | the RTC's own die temperature, and the time it holds |
 | `0x48` | PCF8591 | 4 × 8-bit ADC channels, raw and scaled to volts |
-| `0x20` | PCF8574 | the **active-low buzzer**: `0xff` is silent, clearing one bit sounds it |
+| `0x20` | PCF8574 | the **active-low buzzer** on bit 7, LED2 on bit 4, and the joystick's four directions on bits 0–3 (all active-low) |
+| BCM 20 | GPIO | the joystick's centre press, with a pull-up |
+| 1-Wire | DS18B20 | temperature probes, through the kernel's `w1-gpio` driver (optional; the board ships one loose) |
+
+The PCF8574 and joystick wiring comes from Waveshare's own demo code (`PCF8574/python/pcf8574.py`, `KEY/python/key.py` in the Pioneer600 code archive). Versions before the joystick support used bit 0 for the buzzer, which is the joystick's "left" line, so the buzzer stayed silent.
 
 > [!WARNING]
 > On the Pioneer600, `0x20` is the buzzer, not an LCD backpack. Writing LCD frames to it makes the buzzer chatter, so the LCD is **off by default**. If it ever beeps without stopping: `i2cset -y 1 0x20 0xff`.
 
-Enable I²C first (`dtparam=i2c_arm=on` in `config.txt`), and check the bus with `i2cdetect -y 1`.
+Enable I²C first (`dtparam=i2c_arm=on` in `config.txt`), and check the bus with `i2cdetect -y 1`. For the DS18B20 add `dtoverlay=w1-gpio-pullup`, and for the joystick centre `gpio=20=pu`; both take effect after a reboot. Probes then appear as `/sys/bus/w1/devices/28-*`.
+
+The BMP180 sits right above the Pi's CPU, so it reads the board's heat (around 36 °C), not the room's. When a DS18B20 probe is attached, the status page shows the probe as the temperature.
 
 ## Install
 
@@ -63,7 +69,9 @@ $ didban lcd -s 120 dinner is ready   # show a message on the LCD for 2 min (nee
 
 ## Status page
 
-`serve` answers on `/` with a status page in the [Naz](https://github.com/1995parham/naz.vim) palette. It shows the current readings, the pressure trend over three hours, the RTC's drift from the system clock, 24-hour temperature and pressure charts, the ADC channels, which chips were found, and buttons that sound the buzzer. The page is embedded in the binary and loads nothing from the internet. It refreshes itself at the poll interval.
+`serve` answers on `/` with a status page in the [Naz](https://github.com/1995parham/naz.vim) palette. It shows the current readings, the pressure trend over three hours, the RTC's drift from the system clock, 24-hour temperature and pressure charts, the joystick (each key lights while held, with its press count and the latest presses), the DS18B20 probes, the ADC channels, which chips were found, and buttons that sound the buzzer.
+
+The joystick is polled every 50 ms. Each press is counted once however long it is held, logged, exported as a metric, and answered with a short chirp (`[joystick] beep = false` turns that off). The page is embedded in the binary and loads nothing from the internet. It refreshes itself at the poll interval.
 
 The charts are kept in memory, one point a minute, and start empty after a restart. Prometheus keeps the long history.
 
@@ -73,6 +81,7 @@ The page reads a small JSON API, which other tools can use too:
 | --- | --- |
 | `GET /api/status` | host, version, uptime, the chips found, the latest reading, and `rtc_drift_seconds` |
 | `GET /api/history` | the last 24 h, one sample a minute: temperature, pressure, RTC temperature |
+| `GET /api/joystick` | the keys held now, presses per key, and the last ten presses |
 | `POST /api/beep` | `{"count": 1}` (1–5) sounds the buzzer. It needs `Content-Type: application/json`, so a page on another site cannot trigger it, and answers 409 while a beep is still sounding |
 | `POST /lcd` | a message for the LCD (see above) |
 | `GET /metrics` | Prometheus |
@@ -89,6 +98,8 @@ didban has no login. Keep the port inside the house, or put a reverse proxy with
 | `didban_rtc_temperature_celsius` | | DS3231 die temperature |
 | `didban_adc_raw` | `channel`, `label` | ADC conversion, 0–255 |
 | `didban_adc_volts` | `channel`, `label` | ADC value scaled to `vref` |
+| `didban_ds18b20_temperature_celsius` | `id` | each DS18B20 probe |
+| `didban_joystick_presses_total` | `key` | joystick presses since start (`up`, `down`, `left`, `right`, `center`) |
 
 Scrape it like any exporter:
 
@@ -122,13 +133,13 @@ After=network-online.target
 ExecStart=/usr/local/bin/didban serve
 Restart=always
 DynamicUser=yes
-SupplementaryGroups=i2c
+SupplementaryGroups=i2c gpio
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-The `i2c` group must own `/dev/i2c-*` (`SUBSYSTEM=="i2c-dev", GROUP="i2c", MODE="0660"` in a udev rule).
+The `gpio` group is for the joystick centre key (`/dev/gpiochip*`). The `i2c` group must own `/dev/i2c-*` (`SUBSYSTEM=="i2c-dev", GROUP="i2c", MODE="0660"` in a udev rule).
 
 ## Development
 
