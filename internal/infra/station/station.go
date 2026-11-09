@@ -7,8 +7,10 @@ package station
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"periph.io/x/conn/v3/i2c"
@@ -24,8 +26,10 @@ import (
 )
 
 // Station is a live sensor HAT. Build it with New and release the bus with
-// Close.
+// Close. It is safe for concurrent use: every bus access holds mu, so a beep
+// from the web page cannot interleave with a sensor poll.
 type Station struct {
+	mu   sync.Mutex
 	cfg  config.Config
 	bus  i2c.BusCloser
 	bmp  *bmp180.Sensor
@@ -88,6 +92,9 @@ func New(cfg config.Config) (*Station, error) {
 
 // Read polls every available sensor once.
 func (s *Station) Read(ctx context.Context) sensor.Reading {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	r := sensor.Reading{At: time.Now()}
 
 	if s.bmp != nil {
@@ -130,6 +137,20 @@ func (s *Station) Read(ctx context.Context) sensor.Reading {
 	return r
 }
 
+// Sensors reports which components were found and are in use, by name.
+func (s *Station) Sensors() map[string]bool {
+	return map[string]bool{
+		"bmp180":  s.bmp != nil,
+		"ds3231":  s.rtc != nil,
+		"pcf8591": s.adc != nil,
+		"buzzer":  s.buzz != nil,
+		"lcd":     s.lcd != nil,
+	}
+}
+
+// HasBuzzer reports whether a usable buzzer was found.
+func (s *Station) HasBuzzer() bool { return s.buzz != nil }
+
 // HasLCD reports whether a usable LCD was found.
 func (s *Station) HasLCD() bool { return s.lcd != nil }
 
@@ -139,6 +160,9 @@ func (s *Station) ShowLines(lines []string) error {
 	if s.lcd == nil {
 		return nil
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if err := s.lcd.Lines(lines); err != nil {
 		return fmt.Errorf("station: write lcd: %w", err)
@@ -153,8 +177,27 @@ func (s *Station) Beep(d time.Duration) error {
 		return nil
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := s.buzz.Beep(d); err != nil {
 		return fmt.Errorf("station: beep: %w", err)
+	}
+
+	return nil
+}
+
+// SetClock writes t to the DS3231 in the configured timezone.
+func (s *Station) SetClock(t time.Time) error {
+	if s.rtc == nil {
+		return errors.New("station: no ds3231 configured")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.rtc.SetTime(t, s.loc); err != nil {
+		return fmt.Errorf("station: set clock: %w", err)
 	}
 
 	return nil
