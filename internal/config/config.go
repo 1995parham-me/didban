@@ -30,6 +30,24 @@ type Config struct {
 	Joystick Joystick `json:"joystick" koanf:"joystick"`
 	DS18B20  OneWire  `json:"ds18b20"  koanf:"ds18b20"`
 	Tunnel   Tunnel   `json:"tunnel"   koanf:"tunnel"`
+	OLED     OLED     `json:"oled"     koanf:"oled"`
+	LED      LED      `json:"led"      koanf:"led"`
+}
+
+// OLED is the 128×64 SSD1306 on SPI: the port and the data/command and reset
+// GPIOs (periph names). Contrast is 0–255.
+type OLED struct {
+	Enabled  bool   `json:"enabled"  koanf:"enabled"`
+	SPI      string `json:"spi"      koanf:"spi"`
+	DC       string `json:"dc"       koanf:"dc"`
+	Reset    string `json:"reset"    koanf:"reset"`
+	Contrast uint8  `json:"contrast" koanf:"contrast"`
+}
+
+// LED is a light on a GPIO that shows the tunnel's state.
+type LED struct {
+	Enabled bool   `json:"enabled" koanf:"enabled"`
+	Pin     string `json:"pin"     koanf:"pin"`
 }
 
 // Tunnel is a sing-box tunnel on the same host, read through its Clash API:
@@ -134,6 +152,8 @@ func Default() Config {
 		},
 		Joystick: Joystick{Enabled: true, Address: 0x20, Center: "GPIO20", Poll: 50 * time.Millisecond, Beep: true},
 		DS18B20:  OneWire{Enabled: true, Dir: "/sys/bus/w1/devices"},
+		OLED:     OLED{Enabled: true, SPI: "/dev/spidev0.0", DC: "GPIO16", Reset: "GPIO19", Contrast: 0x7F},
+		LED:      LED{Enabled: true, Pin: "GPIO26"},
 		Tunnel:   Tunnel{Enabled: false, API: "http://127.0.0.1:9099", Selector: "tunnel", Poll: 2 * time.Second},
 	}
 }

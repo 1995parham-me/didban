@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/carlmjohnson/versioninfo"
@@ -73,6 +74,9 @@ type server struct {
 	host    string
 	beeping sync.Mutex
 	tunnel  *tunnel.Watcher // nil when the tunnel is not configured
+	oled    bool
+	// ledState is the LED's current pattern name; empty without an LED.
+	ledState atomic.Value
 }
 
 // status is the GET /api/status body.
@@ -88,6 +92,7 @@ type status struct {
 	RTCDriftSeconds *float64              `json:"rtc_drift_seconds,omitempty"`
 	Joystick        *sensor.JoystickState `json:"joystick,omitempty"`
 	Tunnel          bool                  `json:"tunnel"`
+	LED             string                `json:"led,omitempty"`
 }
 
 // beepRequest is the POST /api/beep body.
@@ -163,6 +168,13 @@ func (s *server) status(w http.ResponseWriter, _ *http.Request) {
 		Sensors:     s.st.Sensors(),
 		Reading:     s.now.get(),
 		Tunnel:      s.tunnel != nil,
+	}
+
+	body.Sensors["oled"] = s.oled
+
+	if v, ok := s.ledState.Load().(string); ok {
+		body.LED = v
+		body.Sensors["led"] = true
 	}
 
 	if s.st.HasJoystick() {

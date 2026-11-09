@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,7 +17,9 @@ import (
 
 	"github.com/1995parham-me/didban/internal/config"
 	"github.com/1995parham-me/didban/internal/infra/clashapi"
+	"github.com/1995parham-me/didban/internal/infra/led"
 	"github.com/1995parham-me/didban/internal/infra/metrics"
+	"github.com/1995parham-me/didban/internal/infra/ssd1306"
 	"github.com/1995parham-me/didban/internal/infra/station"
 	"github.com/1995parham-me/didban/internal/tunnel"
 )
@@ -65,6 +68,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		web.tunnel = tunnel.New(clashapi.New(cfg.Tunnel.API, cfg.Tunnel.Secret), cfg.Tunnel.Selector, historySize)
 		go web.tunnel.Run(ctx, cfg.Tunnel.Poll)
 	}
+
+	done := startOutputs(ctx, cfg, web)
+	defer done()
 
 	srv := &http.Server{
 		Addr:              cfg.Server.Address,
@@ -124,4 +130,36 @@ func poll(ctx context.Context, cfg config.Config, st *station.Station, coll *met
 			render()
 		}
 	}
+}
+
+// startOutputs starts the OLED and the LED when they are enabled and work.
+// The returned function waits for both to blank themselves after ctx ends.
+func startOutputs(ctx context.Context, cfg config.Config, web *server) func() {
+	var wg sync.WaitGroup
+
+	if cfg.OLED.Enabled {
+		if d, err := ssd1306.New(cfg.OLED.SPI, cfg.OLED.DC, cfg.OLED.Reset); err != nil {
+			slog.Warn("oled unavailable", "err", err)
+		} else {
+			if err := d.Contrast(cfg.OLED.Contrast); err != nil {
+				slog.Warn("oled contrast", "err", err)
+			}
+
+			web.oled = true
+
+			wg.Go(func() { web.drawOLED(ctx, d) })
+		}
+	}
+
+	if cfg.LED.Enabled {
+		if l, err := led.New(cfg.LED.Pin); err != nil {
+			slog.Warn("led unavailable", "err", err)
+		} else {
+			web.ledState.Store(patternOff)
+
+			wg.Go(func() { web.driveLED(ctx, l) })
+		}
+	}
+
+	return wg.Wait
 }

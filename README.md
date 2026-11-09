@@ -13,7 +13,7 @@
 
 ---
 
-didban reads the sensors on a [Waveshare Pioneer600](https://www.waveshare.com/wiki/Pioneer600) HAT over I²C and shows them on a small status page and as Prometheus metrics: room temperature, air pressure, the real-time clock, and four analog inputs. It can also sound the HAT's buzzer, keep the RTC set, and drive an HD44780 character LCD when one is connected.
+didban reads the sensors on a [Waveshare Pioneer600](https://www.waveshare.com/wiki/Pioneer600) HAT over I²C and shows them on a small status page and as Prometheus metrics: room temperature, air pressure, the real-time clock, and four analog inputs. It also draws a status screen on the HAT's OLED, shows a sing-box tunnel's state on LED1, sounds the buzzer, keeps the RTC set, and can drive an HD44780 character LCD when one is connected.
 
 It is one static binary with no CGO and no external assets, so a `GOARCH=arm64` build copies straight onto the Pi. A dead or missing chip is logged and skipped; the other sensors keep reporting.
 
@@ -26,12 +26,16 @@ It is one static binary with no CGO and no external assets, so a `GOARCH=arm64` 
 | `0x48` | PCF8591 | 4 × 8-bit ADC channels, raw and scaled to volts |
 | `0x20` | PCF8574 | the **active-low buzzer** on bit 7, LED2 on bit 4, and the joystick's four directions on bits 0–3 (all active-low) |
 | BCM 20 | GPIO | the joystick's centre press, with a pull-up |
+| SPI0 CE0, BCM 16 (DC), BCM 19 (RST) | SSD1306 | the 128×64 OLED: clock, temperature, and the tunnel (exit, delay, throughput, flows) |
+| BCM 26 | LED1 | the tunnel light (see [LED1](#led1)) |
 | 1-Wire | DS18B20 | temperature probes, through the kernel's `w1-gpio` driver (optional; the board ships one loose) |
 
 The PCF8574 and joystick wiring comes from Waveshare's own demo code (`PCF8574/python/pcf8574.py`, `KEY/python/key.py` in the Pioneer600 code archive). Versions before the joystick support used bit 0 for the buzzer, which is the joystick's "left" line, so the buzzer stayed silent.
 
 > [!WARNING]
 > On the Pioneer600, `0x20` is the buzzer, not an LCD backpack. Writing LCD frames to it makes the buzzer chatter, so the LCD is **off by default**. If it ever beeps without stopping: `i2cset -y 1 0x20 0xff`.
+
+The OLED pins come from the pi4j project's Pioneer600 board config (Waveshare's wiki was unreachable). The OLED is on SPI, not I²C, so `i2cdetect` never shows it, and it needs `dtparam=spi=on` (or `sudo dtparam spi=on` until the next boot). SPI is write-only: didban cannot tell whether a panel is there, so it draws either way.
 
 Enable I²C first (`dtparam=i2c_arm=on` in `config.txt`), and check the bus with `i2cdetect -y 1`. For the DS18B20 add `dtoverlay=w1-gpio-pullup`, and for the joystick centre `gpio=20=pu`; both take effect after a reboot. Probes then appear as `/sys/bus/w1/devices/28-*`.
 
@@ -75,6 +79,22 @@ The joystick is polled every 50 ms. Each press is counted once however long it i
 
 The charts are kept in memory, one point a minute, and start empty after a restart. Prometheus keeps the long history.
 
+### OLED
+
+The OLED is redrawn every second. Its four rows are the clock and temperature, the tunnel's exit and probe delay, the download rate, and the upload rate with the number of open flows. When the tunnel fails open or its API does not answer, the second row is a lit bar with dark text, so it shows from across the room. Without a tunnel, it shows the pressure instead. A message sent to `POST /lcd` replaces the screen while it lasts. The whole screen moves by one pixel each minute, so that no pixel stays lit for days: OLEDs burn in.
+
+### LED1
+
+LED1 shows the tunnel's state at a glance:
+
+| LED | Means |
+| --- | --- |
+| steady on | the tunnel is up and idle |
+| on, with short dark flickers | the tunnel is up and data moves; the more data, the faster it flickers |
+| slow blink (1 s on, 1 s off) | fail-open: the selector is on `direct`, so traffic leaves without the tunnel |
+| double flash | the tunnel's API does not answer (sing-box is down) |
+| off | no tunnel configured, or didban is stopped |
+
 ### Tunnel
 
 When the same host runs a [sing-box](https://sing-box.sagernet.org/) tunnel with the Clash API on, `[tunnel] enabled = true` adds a Tunnel section at the top of the page. didban reads the API every 2 s and shows the exit the selector uses now (groups followed down to the outbound), the last probe delay of every exit it can reach, the download and upload rate, the totals since sing-box started, a 24-hour download chart, and the flows open now: host, address, exit, age, the rate of each flow over the last poll, and its bytes. The busiest flows come first. When the selector is on a `direct` outbound, the page marks it as fail-open. Give the API secret in `DIDBAN_TUNNEL__SECRET`, not in a file you commit.
@@ -83,7 +103,7 @@ The page reads a small JSON API, which other tools can use too:
 
 | Route | |
 | --- | --- |
-| `GET /api/status` | host, version, uptime, the chips found, the latest reading, and `rtc_drift_seconds` |
+| `GET /api/status` | host, version, uptime, the chips found, the latest reading, `rtc_drift_seconds`, and `led`, the LED's pattern (`up`, `busy`, `fail-open`, `api-down`, `off`) |
 | `GET /api/history` | the last 24 h, one sample a minute: temperature, pressure, RTC temperature |
 | `GET /api/joystick` | the keys held now, presses per key, and the last ten presses |
 | `GET /api/tunnel` | the tunnel now: selector, exit, exits with their delays, rates, totals and the open flows (404 without `[tunnel]`) |

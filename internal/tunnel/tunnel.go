@@ -64,6 +64,15 @@ type Snapshot struct {
 	Flows         []Flow    `json:"flows"`
 }
 
+// FailOpen reports whether the selector sends traffic straight out (its
+// `direct` outbound) instead of through an exit.
+func (s Snapshot) FailOpen() bool {
+	return s.Now == direct || s.Exit == direct
+}
+
+// direct is the name of sing-box's direct outbound in the selector.
+const direct = "direct"
+
 // Point is one minute of throughput, averaged over the minute.
 type Point struct {
 	At      time.Time `json:"t"`

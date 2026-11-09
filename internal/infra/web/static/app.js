@@ -13,6 +13,8 @@ const HARDWARE = [
   ["buzzer", "PCF8574", "0x20", "buzzer (bit 7, active-low)"],
   ["joystick", "Joystick", "0x20 + GPIO 20", "5-way switch: directions on PCF8574 bits 0–3, centre on BCM 20"],
   ["ds18b20", "DS18B20", "1-Wire", "temperature probe (optional)"],
+  ["oled", "SSD1306", "SPI0 · DC 16 · RST 19", "128×64 OLED: clock, temperature, tunnel"],
+  ["led", "LED1", "GPIO 26", "tunnel light: steady up, flicker = data moving, slow blink = fail-open, double flash = API down"],
   ["lcd", "LCD", "", "character display (optional)"],
 ];
 
@@ -102,6 +104,11 @@ function renderStatus(s) {
   if (s.joystick) renderJoystick(s.joystick);
   $("joystick-panel").hidden = !(s.sensors || {}).joystick;
   $("tunnel").hidden = !s.tunnel;
+  const LED = { "up": ["ok", "LED steady: up"], "busy": ["ok", "LED flickering: data moving"], "fail-open": ["bad", "LED slow blink: fail-open"], "api-down": ["bad", "LED double flash: API down"], "off": ["", "LED off"] };
+  const [cls, text] = LED[s.led] || ["", ""];
+  $("tun-led").className = `chip ${cls}`;
+  $("tun-led").textContent = text;
+  $("tun-led").hidden = !s.led;
 
   if (r.pressure_pa != null) setValue("pressure", (r.pressure_pa / 100).toFixed(1), "hPa");
   else setValue("pressure", "–");

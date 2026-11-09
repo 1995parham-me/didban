@@ -49,6 +49,21 @@ beep = true
 enabled = true
 dir = "/sys/bus/w1/devices"
 
+[oled]
+# 128x64 SSD1306 on SPI (the Pioneer600's display): needs dtparam=spi=on in
+# config.txt. Shows the clock, the temperature and the tunnel.
+enabled = true
+spi = "/dev/spidev0.0"
+dc = "GPIO16"
+reset = "GPIO19"
+contrast = 127
+
+[led]
+# LED1 shows the tunnel: steady = up, flicker = data moving, slow blink =
+# fail-open, double flash = the tunnel's API does not answer, off = no tunnel
+enabled = true
+pin = "GPIO26"
+
 [lcd]
 # HD44780 behind a PCF8574 backpack. Off by default: on the Pioneer600,
 # 0x20 is the buzzer, and driving it as an LCD makes it beep.
