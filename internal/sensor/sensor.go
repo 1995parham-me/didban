@@ -25,6 +25,18 @@ type Reading struct {
 	// PCF8591 ADC (0x48): the four analog channels, raw 0–255 and scaled to
 	// volts against the configured reference.
 	ADC []ADCChannel `json:"adc,omitempty"`
+
+	// DS18B20 probes on the 1-Wire bus, in serial order. Empty when none is
+	// attached.
+	Probes []Probe `json:"probes,omitempty"`
+}
+
+// Probe is one DS18B20 temperature probe.
+type Probe struct {
+	// ID is the kernel's device name, 28-<serial>.
+	ID string `json:"id"`
+	// Celsius is its temperature.
+	Celsius float64 `json:"celsius"`
 }
 
 // ADCChannel is one PCF8591 analog input.
