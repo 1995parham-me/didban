@@ -12,6 +12,7 @@ import (
 	"github.com/1995parham-me/didban/internal/cmd/beep"
 	lcdcmd "github.com/1995parham-me/didban/internal/cmd/lcd"
 	"github.com/1995parham-me/didban/internal/cmd/read"
+	"github.com/1995parham-me/didban/internal/cmd/rtc"
 	"github.com/1995parham-me/didban/internal/cmd/serve"
 )
 
@@ -22,13 +23,14 @@ func Execute() {
 
 	root := &cli.Command{
 		Name:    "didban",
-		Usage:   "home sensor-HAT monitor: Prometheus metrics and an LCD",
+		Usage:   "home sensor-HAT monitor: a status page, Prometheus metrics and an LCD",
 		Version: versioninfo.Short(),
 		Commands: []*cli.Command{
 			serve.Command(),
 			read.Command(),
 			beep.Command(),
 			lcdcmd.Command(),
+			rtc.Command(),
 		},
 	}
 
