@@ -1,0 +1,43 @@
+# didban configuration. Every key is optional: the defaults match a
+# Waveshare Pioneer600 HAT on I²C bus 1. Environment variables override
+# the file: DIDBAN_POLL__INTERVAL=5s, DIDBAN_BUZZER__ENABLED=false, ...
+
+[i2c]
+bus = "1"
+
+[poll]
+interval = "15s"
+
+[server]
+# /metrics (Prometheus) and POST /lcd
+address = ":9465"
+
+[bmp180]
+enabled = true
+address = 0x77
+
+[ds3231]
+enabled = true
+address = 0x68
+timezone = "Asia/Tehran"
+
+[adc]
+enabled = true
+address = 0x48
+vref = 3.3
+labels = ["potentiometer", "photoresistor", "ain2", "ain3"]
+
+[buzzer]
+# active-low buzzer on the PCF8574 I/O expander
+enabled = true
+address = 0x20
+bit = 0
+
+[lcd]
+# HD44780 behind a PCF8574 backpack. Off by default: on the Pioneer600,
+# 0x20 is the buzzer, and driving it as an LCD makes it beep.
+enabled = false
+address = 0x27
+cols = 16
+rows = 2
+backlight = true
