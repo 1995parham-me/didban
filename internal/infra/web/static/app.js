@@ -1,4 +1,5 @@
-// didban status page: polls api/status and api/history and draws them.
+// didban status page: polls api/status, api/history and, when a tunnel is
+// configured, api/tunnel, and draws them.
 // No libraries, so the page loads where no CDN is reachable.
 "use strict";
 
@@ -100,6 +101,7 @@ function renderStatus(s) {
   renderProbes(r.probes || []);
   if (s.joystick) renderJoystick(s.joystick);
   $("joystick-panel").hidden = !(s.sensors || {}).joystick;
+  $("tunnel").hidden = !s.tunnel;
 
   if (r.pressure_pa != null) setValue("pressure", (r.pressure_pa / 100).toFixed(1), "hPa");
   else setValue("pressure", "–");
@@ -211,6 +213,109 @@ function renderHardware(found) {
   document.querySelectorAll("[data-beep]").forEach((b) => {
     if (!found.buzzer) b.disabled = true;
   });
+}
+
+// --- tunnel ---------------------------------------------------------------
+
+function fmtBytes(b) {
+  const units = ["B", "kB", "MB", "GB", "TB"];
+  let i = 0;
+  while (b >= 1000 && i < units.length - 1) { b /= 1000; i++; }
+  return [b.toFixed(b < 10 && i ? 2 : b < 100 && i ? 1 : 0), units[i]];
+}
+
+function fmtRate(bps) {
+  const [n, u] = fmtBytes(bps || 0);
+  return `${n} ${u}/s`;
+}
+
+function renderTunnel(t) {
+  const err = $("tunnel-error");
+  err.hidden = t.ok;
+  if (!t.ok) err.textContent = `No answer from the tunnel's API: ${t.error || "unknown error"}. The router sends the traffic direct while sing-box is down.`;
+
+  const sub = $("tun-exit-sub");
+  sub.className = "sub";
+  setValue("tun-exit", t.exit || "–");
+  $("tun-exit").classList.add("long");
+  const active = (t.exits || []).find((e) => e.active);
+  if (t.now === "direct") {
+    sub.textContent = `${t.selector} → direct: FAIL-OPEN, the exits are down`;
+    sub.classList.add("red");
+  } else if (t.now && t.now !== t.exit) {
+    sub.textContent = `${t.selector} → ${t.now}${active && active.delay_ms ? ` · ${active.delay_ms} ms` : ""}`;
+  } else {
+    sub.textContent = t.now ? `${t.selector} → ${t.now} (pinned by hand)` : t.selector;
+  }
+
+  const [dn, du] = fmtBytes(t.down_bps || 0), [un, uu] = fmtBytes(t.up_bps || 0);
+  setValue("tun-down", dn, `${du}/s`);
+  setValue("tun-up", un, `${uu}/s`);
+  $("tun-down-sub").textContent = `${fmtBytes(t.download_total || 0).join(" ")} since sing-box started`;
+  $("tun-up-sub").textContent = `${fmtBytes(t.upload_total || 0).join(" ")} since sing-box started`;
+
+  const flows = t.flows || [];
+  const busy = flows.filter((f) => f.down_bps + f.up_bps > 0).length;
+  setValue("tun-flows", String(flows.length));
+  $("tun-flows-sub").textContent = `${busy} moving data now`;
+
+  $("tun-exits").replaceChildren(...(t.exits || []).map((e) => {
+    let chip;
+    if (e.type === "Direct") chip = el("span", { class: e.active ? "chip bad" : "chip" }, e.active ? "in use: fail-open" : "fail-open");
+    else if (e.delay_ms == null) chip = el("span", { class: "chip" }, "not probed");
+    else if (e.delay_ms === 0) chip = el("span", { class: "chip bad" }, "probe failed");
+    else chip = el("span", { class: e.active ? "chip ok" : "chip" }, `${e.delay_ms} ms`);
+    const when = e.at ? ` · probed ${fmtTime(new Date(e.at), true)}` : "";
+    return el("li", {},
+      el("span", { class: "grow" }, el("span", { class: "name" }, e.name), e.active ? el("span", { class: "green small" }, "  ● in use") : "", el("br"),
+        el("span", { class: "muted small" }, `${e.type}${when}`)),
+      chip);
+  }));
+  if (!(t.exits || []).length) $("tun-exits").replaceChildren(el("li", { class: "empty" }, "No exits reported."));
+
+  const now = new Date(t.at);
+  const shown = flows.slice(0, 60);
+  $("tun-flows-note").textContent = flows.length > shown.length ? `· busiest ${shown.length} of ${flows.length}` : "";
+  const rows = shown.map((f) => {
+    const idle = f.down_bps + f.up_bps === 0;
+    return el("tr", idle ? { class: "idle" } : {},
+      el("td", { class: "host" }, f.host || f.dest, el("small", {}, `${f.network} ${f.dest}`)),
+      el("td", {}, el("code", {}, f.exit || "–")),
+      el("td", {}, fmtDuration((now - new Date(f.start)) / 1000)),
+      el("td", { class: "num" }, idle ? "–" : fmtRate(f.down_bps)),
+      el("td", { class: "num" }, idle ? "–" : fmtRate(f.up_bps)),
+      el("td", { class: "num" }, fmtBytes(f.download).join(" ")),
+      el("td", { class: "num" }, fmtBytes(f.upload).join(" ")));
+  });
+  $("tun-flow-rows").replaceChildren(...(rows.length ? rows : [el("tr", {}, el("td", { colspan: "7", class: "empty" }, "No flows open right now."))]));
+}
+
+// The tunnel is polled every 2 s, but only while the page is visible (and
+// once regardless, so a page opened in the background is not empty).
+let tunnelDrawn = false;
+
+async function refreshTunnel() {
+  if (last && last.tunnel && (!document.hidden || !tunnelDrawn)) {
+    tunnelDrawn = true;
+    try {
+      renderTunnel(await getJSON("api/tunnel"));
+    } catch {
+      // the status banner reports an unreachable daemon.
+    }
+  }
+  setTimeout(refreshTunnel, 2000);
+}
+
+async function refreshTunnelHistory() {
+  if (last && last.tunnel) {
+    try {
+      const points = (await getJSON("api/tunnel/history")).map((p) => ({ t: new Date(p.t).getTime(), v: p.down_bps / 1e6 }));
+      drawChart($("chart-tunnel"), points, "MB/s", "green", 2);
+    } catch {
+      // the status banner reports an unreachable daemon.
+    }
+  }
+  setTimeout(refreshTunnelHistory, 60e3);
 }
 
 // --- liveness -------------------------------------------------------------
@@ -368,5 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshStatus();
   refreshHistory();
   refreshJoystick();
+  refreshTunnel();
+  setTimeout(refreshTunnelHistory, 1500);
   setInterval(renderLive, 1000);
 });

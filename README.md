@@ -75,6 +75,10 @@ The joystick is polled every 50 ms. Each press is counted once however long it i
 
 The charts are kept in memory, one point a minute, and start empty after a restart. Prometheus keeps the long history.
 
+### Tunnel
+
+When the same host runs a [sing-box](https://sing-box.sagernet.org/) tunnel with the Clash API on, `[tunnel] enabled = true` adds a Tunnel section at the top of the page. didban reads the API every 2 s and shows the exit the selector uses now (groups followed down to the outbound), the last probe delay of every exit it can reach, the download and upload rate, the totals since sing-box started, a 24-hour download chart, and the flows open now: host, address, exit, age, the rate of each flow over the last poll, and its bytes. The busiest flows come first. When the selector is on a `direct` outbound, the page marks it as fail-open. Give the API secret in `DIDBAN_TUNNEL__SECRET`, not in a file you commit.
+
 The page reads a small JSON API, which other tools can use too:
 
 | Route | |
@@ -82,6 +86,8 @@ The page reads a small JSON API, which other tools can use too:
 | `GET /api/status` | host, version, uptime, the chips found, the latest reading, and `rtc_drift_seconds` |
 | `GET /api/history` | the last 24 h, one sample a minute: temperature, pressure, RTC temperature |
 | `GET /api/joystick` | the keys held now, presses per key, and the last ten presses |
+| `GET /api/tunnel` | the tunnel now: selector, exit, exits with their delays, rates, totals and the open flows (404 without `[tunnel]`) |
+| `GET /api/tunnel/history` | the tunnel's download and upload rate over the last 24 h, one point a minute |
 | `POST /api/beep` | `{"count": 1}` (1–5) sounds the buzzer. It needs `Content-Type: application/json`, so a page on another site cannot trigger it, and answers 409 while a beep is still sounding |
 | `POST /lcd` | a message for the LCD (see above) |
 | `GET /metrics` | Prometheus |

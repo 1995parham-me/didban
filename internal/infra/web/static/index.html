@@ -48,6 +48,52 @@
     </div>
   </section>
 
+  <section id="tunnel" hidden>
+    <h2 class="section"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V11a9 9 0 0 1 18 0v9"/><path d="M7 20v-8a5 5 0 0 1 10 0v8"/></svg>Tunnel</h2>
+    <div class="flash bad" id="tunnel-error" hidden></div>
+    <div class="tiles" aria-label="Tunnel now">
+      <div class="tile">
+        <span class="label">Exit</span>
+        <span class="value green" id="tun-exit">–</span>
+        <span class="sub" id="tun-exit-sub">selector</span>
+      </div>
+      <div class="tile">
+        <span class="label">Download now</span>
+        <span class="value aqua" id="tun-down">–</span>
+        <span class="sub" id="tun-down-sub">since start</span>
+      </div>
+      <div class="tile">
+        <span class="label">Upload now</span>
+        <span class="value pink" id="tun-up">–</span>
+        <span class="sub" id="tun-up-sub">since start</span>
+      </div>
+      <div class="tile">
+        <span class="label">Open flows</span>
+        <span class="value yellow" id="tun-flows">–</span>
+        <span class="sub" id="tun-flows-sub">through the tunnel</span>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>Download · last 24 h</h2>
+        <figure class="chart" id="chart-tunnel" data-unit="MB/s" data-color="green"><p class="empty">Collecting… one point a minute.</p></figure>
+      </div>
+      <div class="panel">
+        <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Exits</h2>
+        <ul class="list" id="tun-exits"><li class="empty">No answer from the tunnel yet.</li></ul>
+      </div>
+    </div>
+    <div class="panel wide">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg>Flows now <span class="muted small" id="tun-flows-note"></span></h2>
+      <div class="scroll">
+        <table class="flows">
+          <thead><tr><th>Host</th><th>Exit</th><th>Age</th><th class="num">↓ now</th><th class="num">↑ now</th><th class="num">↓ total</th><th class="num">↑ total</th></tr></thead>
+          <tbody id="tun-flow-rows"><tr><td colspan="7" class="empty">No flows.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section class="grid2">
     <div class="panel">
       <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0z"/></svg>Temperature · last 24 h</h2>

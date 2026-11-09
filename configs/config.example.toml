@@ -57,3 +57,14 @@ address = 0x27
 cols = 16
 rows = 2
 backlight = true
+
+[tunnel]
+# a sing-box tunnel on this host, read through its Clash API (experimental
+# clash_api in sing-box): the selector's exit, probe delays, throughput and
+# the open flows, on the page and at /api/tunnel. Put the secret in
+# DIDBAN_TUNNEL__SECRET rather than here.
+enabled = false
+api = "http://127.0.0.1:9099"
+secret = ""
+selector = "tunnel"
+poll = "2s"

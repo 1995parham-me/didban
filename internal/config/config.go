@@ -29,6 +29,18 @@ type Config struct {
 
 	Joystick Joystick `json:"joystick" koanf:"joystick"`
 	DS18B20  OneWire  `json:"ds18b20"  koanf:"ds18b20"`
+	Tunnel   Tunnel   `json:"tunnel"   koanf:"tunnel"`
+}
+
+// Tunnel is a sing-box tunnel on the same host, read through its Clash API:
+// the exit Selector uses, the probe delays, the throughput and the open
+// flows. Secret is the API's bearer token.
+type Tunnel struct {
+	Enabled  bool          `json:"enabled"  koanf:"enabled"`
+	API      string        `json:"api"      koanf:"api"`
+	Secret   string        `json:"-"        koanf:"secret"`
+	Selector string        `json:"selector" koanf:"selector"`
+	Poll     time.Duration `json:"poll"     koanf:"poll"`
 }
 
 // Joystick is the five-way switch: four directions on the PCF8574 at Address
@@ -122,6 +134,7 @@ func Default() Config {
 		},
 		Joystick: Joystick{Enabled: true, Address: 0x20, Center: "GPIO20", Poll: 50 * time.Millisecond, Beep: true},
 		DS18B20:  OneWire{Enabled: true, Dir: "/sys/bus/w1/devices"},
+		Tunnel:   Tunnel{Enabled: false, API: "http://127.0.0.1:9099", Selector: "tunnel", Poll: 2 * time.Second},
 	}
 }
 

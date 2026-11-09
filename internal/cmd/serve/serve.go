@@ -15,8 +15,10 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham-me/didban/internal/config"
+	"github.com/1995parham-me/didban/internal/infra/clashapi"
 	"github.com/1995parham-me/didban/internal/infra/metrics"
 	"github.com/1995parham-me/didban/internal/infra/station"
+	"github.com/1995parham-me/didban/internal/tunnel"
 )
 
 // Command returns the `serve` subcommand.
@@ -58,6 +60,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	msg := &message{}
 	web := newServer(cfg, reg, coll, st, msg)
+
+	if cfg.Tunnel.Enabled {
+		web.tunnel = tunnel.New(clashapi.New(cfg.Tunnel.API, cfg.Tunnel.Secret), cfg.Tunnel.Selector, historySize)
+		go web.tunnel.Run(ctx, cfg.Tunnel.Poll)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Server.Address,

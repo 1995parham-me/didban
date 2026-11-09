@@ -23,6 +23,7 @@ import (
 	"github.com/1995parham-me/didban/internal/infra/station"
 	"github.com/1995parham-me/didban/internal/infra/web"
 	"github.com/1995parham-me/didban/internal/sensor"
+	"github.com/1995parham-me/didban/internal/tunnel"
 )
 
 const (
@@ -71,6 +72,7 @@ type server struct {
 	started time.Time
 	host    string
 	beeping sync.Mutex
+	tunnel  *tunnel.Watcher // nil when the tunnel is not configured
 }
 
 // status is the GET /api/status body.
@@ -85,6 +87,7 @@ type status struct {
 	Reading         *sensor.Reading       `json:"reading,omitempty"`
 	RTCDriftSeconds *float64              `json:"rtc_drift_seconds,omitempty"`
 	Joystick        *sensor.JoystickState `json:"joystick,omitempty"`
+	Tunnel          bool                  `json:"tunnel"`
 }
 
 // beepRequest is the POST /api/beep body.
@@ -131,6 +134,8 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/history", s.history)
 	mux.HandleFunc("GET /api/joystick", s.joystick)
 	mux.HandleFunc("POST /api/beep", s.beep)
+	mux.HandleFunc("GET /api/tunnel", s.tunnelStatus)
+	mux.HandleFunc("GET /api/tunnel/history", s.tunnelHistory)
 	mux.HandleFunc("POST /lcd", s.lcd)
 
 	mux.Handle("GET /metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{}))
@@ -157,6 +162,7 @@ func (s *server) status(w http.ResponseWriter, _ *http.Request) {
 		PollSeconds: s.cfg.Poll.Interval.Seconds(),
 		Sensors:     s.st.Sensors(),
 		Reading:     s.now.get(),
+		Tunnel:      s.tunnel != nil,
 	}
 
 	if s.st.HasJoystick() {
@@ -170,6 +176,28 @@ func (s *server) status(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	writeJSON(w, body)
+}
+
+// tunnelStatus is the newest tunnel poll: exit, delays, rates and flows.
+func (s *server) tunnelStatus(w http.ResponseWriter, _ *http.Request) {
+	if s.tunnel == nil {
+		http.Error(w, "no tunnel configured", http.StatusNotFound)
+
+		return
+	}
+
+	writeJSON(w, s.tunnel.Snapshot())
+}
+
+// tunnelHistory is the tunnel's throughput, one point a minute.
+func (s *server) tunnelHistory(w http.ResponseWriter, _ *http.Request) {
+	if s.tunnel == nil {
+		http.Error(w, "no tunnel configured", http.StatusNotFound)
+
+		return
+	}
+
+	writeJSON(w, s.tunnel.History())
 }
 
 func (s *server) history(w http.ResponseWriter, _ *http.Request) {
