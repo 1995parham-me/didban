@@ -46,7 +46,7 @@ type Poll struct {
 	Interval time.Duration `json:"interval" koanf:"interval"`
 }
 
-// Server is the HTTP endpoint (/metrics and POST /lcd).
+// Server is the HTTP endpoint: the status page, /api/, /metrics and POST /lcd.
 type Server struct {
 	Address string `json:"address" koanf:"address"`
 }

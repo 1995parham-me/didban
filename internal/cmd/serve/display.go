@@ -1,15 +1,9 @@
 package serve
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/1995parham-me/didban/internal/sensor"
 )
@@ -53,43 +47,6 @@ type lcdRequest struct {
 	Text    string   `json:"text"`
 	Lines   []string `json:"lines"`
 	Seconds int      `json:"seconds"`
-}
-
-// handler builds the HTTP mux: /metrics for Prometheus, POST /lcd for messages.
-func handler(reg *prometheus.Registry, msg *message) http.Handler {
-	mux := http.NewServeMux()
-
-	mux.Handle("GET /metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
-
-	mux.HandleFunc("POST /lcd", func(w http.ResponseWriter, r *http.Request) {
-		var req lcdRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, fmt.Sprintf("bad request: %v", err), http.StatusBadRequest)
-
-			return
-		}
-
-		lines := req.Lines
-		if len(lines) == 0 && req.Text != "" {
-			lines = strings.Split(req.Text, "\n")
-		}
-
-		if len(lines) == 0 {
-			http.Error(w, "no text or lines", http.StatusBadRequest)
-
-			return
-		}
-
-		ttl := defaultMessageTTL
-		if req.Seconds > 0 {
-			ttl = time.Duration(req.Seconds) * time.Second
-		}
-
-		msg.set(lines, ttl)
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	return mux
 }
 
 // statusLines renders the default LCD screen from a reading: time + temperature

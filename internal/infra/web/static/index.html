@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#282826">
+<title>didban</title>
+<link rel="stylesheet" href="static/style.css">
+<link rel="icon" href="static/icon.svg" type="image/svg+xml">
+<script src="static/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./"><img src="static/icon.svg" alt="" width="26" height="26"><span>didban</span></a>
+  <span class="chip" id="host">…</span>
+  <span class="grow"></span>
+  <span class="live" id="live"><span class="pulse"></span><span id="age">connecting</span></span>
+</header>
+<main>
+  <section class="hello">
+    <h1>The house, right now</h1>
+    <p class="muted" id="today">Readings from the sensor HAT, every few seconds.</p>
+  </section>
+
+  <div class="flash bad" id="error" hidden></div>
+
+  <section class="tiles" aria-label="Current readings">
+    <div class="tile">
+      <span class="label">Temperature</span>
+      <span class="value pink" id="temp">–</span>
+      <span class="sub" id="temp-sub">BMP180</span>
+    </div>
+    <div class="tile">
+      <span class="label">Air pressure</span>
+      <span class="value aqua" id="pressure">–</span>
+      <span class="sub" id="pressure-sub">trend over 3 h</span>
+    </div>
+    <div class="tile">
+      <span class="label">Clock (DS3231)</span>
+      <span class="value yellow" id="clock">–</span>
+      <span class="sub" id="clock-sub">real-time clock</span>
+    </div>
+    <div class="tile">
+      <span class="label">Daemon</span>
+      <span class="value green" id="uptime">–</span>
+      <span class="sub" id="uptime-sub">up</span>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="panel">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0z"/></svg>Temperature · last 24 h</h2>
+      <figure class="chart" id="chart-temp" data-unit="°C" data-color="pink"><p class="empty">Collecting… one point a minute.</p></figure>
+    </div>
+    <div class="panel">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-4M12 5V3"/></svg>Pressure · last 24 h</h2>
+      <figure class="chart" id="chart-pressure" data-unit="hPa" data-color="aqua"><p class="empty">Collecting… one point a minute.</p></figure>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="panel">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Analog inputs (PCF8591)</h2>
+      <ul class="bars" id="adc"><li class="empty">No ADC reading.</li></ul>
+    </div>
+    <div class="panel">
+      <h2><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>Hardware</h2>
+      <ul class="list" id="hardware"></ul>
+      <div class="actions">
+        <button class="button" type="button" data-beep="1"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h4l5-4.5v14l-5-4.5H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>Beep</button>
+        <button class="button" type="button" data-beep="3">Beep × 3</button>
+        <span class="muted small" id="beep-state"></span>
+      </div>
+    </div>
+  </section>
+</main>
+<footer><span>didban</span> · دیدبان, the lookout · charts are kept in memory; Grafana holds the long history · <a href="metrics">metrics</a> · <a href="https://github.com/1995parham-me/didban">source</a></footer>
+</body>
+</html>

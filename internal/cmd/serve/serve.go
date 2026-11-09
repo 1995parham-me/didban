@@ -1,6 +1,7 @@
 // Package serve runs the didban daemon: it polls the sensor station on an
 // interval, updates the Prometheus gauges, renders a status screen on the LCD,
-// and serves /metrics plus a POST /lcd endpoint for pushing custom messages.
+// and serves the house-status page at / (with its JSON API under /api/),
+// /metrics, and a POST /lcd endpoint for pushing custom messages.
 package serve
 
 import (
@@ -56,10 +57,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	coll.MustRegister(reg)
 
 	msg := &message{}
+	web := newServer(cfg, reg, st, msg)
 
 	srv := &http.Server{
 		Addr:              cfg.Server.Address,
-		Handler:           handler(reg, msg),
+		Handler:           web.handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -70,7 +72,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	poll(ctx, cfg, st, coll, msg)
+	poll(ctx, cfg, st, coll, msg, web)
 
 	shutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
@@ -79,14 +81,15 @@ func run(ctx context.Context, cmd *cli.Command) error {
 }
 
 // poll reads the station every interval until ctx is done, updating metrics and
-// the LCD on each tick.
-func poll(ctx context.Context, cfg config.Config, st *station.Station, coll *metrics.Collector, msg *message) {
+// the LCD and the web page on each tick.
+func poll(ctx context.Context, cfg config.Config, st *station.Station, coll *metrics.Collector, msg *message, web *server) {
 	ticker := time.NewTicker(cfg.Poll.Interval)
 	defer ticker.Stop()
 
 	render := func() {
 		reading := st.Read(ctx)
 		coll.Observe(reading)
+		web.observe(reading)
 
 		if !st.HasLCD() {
 			return
